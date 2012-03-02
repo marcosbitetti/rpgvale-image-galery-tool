@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>teste</title>
+  <meta name="description" content="">
+  <meta name="author" content="bitetti@rpgvale.com.br">
+  <!-- estilos -->
+  <!-- link rel="stylesheet" href="css/style.css" type="text/css" -->
+  <!-- programação -->
+  <script src="js/jquery.js" type="text/javascript"></script>
+  <!-- script src="script.js" type="text/javascript"></script -->
+  <style>
+  body {
+    width: 400px;
+    height: 460px;
+  }
+
+  #elements-doc {
+	height: 350px;
+    max-height: 350px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #thumb {
+	display: none;
+	position: absolute;
+  }
+</style>
+<script type="text/javascript">
+<!-- //
+
+function getWin(win)
+{
+	chrome.tabs.captureVisibleTab(win.id, {"format":"jpeg", "quality":30}, getImageTab);
+	chrome.tabs.query( {active:true, windowId:win.id}, getTabData);
+}
+
+function getImageTab(win)
+{
+	img.src= String(win);
+	//$(img).css("display","block");
+	//$(img).width(320).height(240);
+	//document.getElementById("elements-doc").appendChild(img);
+	screenShot = String(win);
+	//alert(screenShot);
+	
+	store.transaction(
+		function(tx)
+		{
+			tx.executeSql("UPDATE fontes SET thumb='"+screenShot+"' WHERE url='"+currentURL+"'");
+			showLinks();
+		},
+		error
+	)
+}
+
+
+function getTabData(resTab)
+{
+	if (resTab.length == 1)
+	{
+		var tab = resTab[0];
+		currentURL = tab.url;
+		currentTabId = tab.id;
+		store.transaction(
+			function(tx){tx.executeSql("SELECT autor,title,url,thumb FROM fontes WHERE url='"+tab.url+"'",
+				[],
+				function( tx,sc ) {
+					if(sc.rows.length==0 )// || true) // DEBUG
+					{	// sem registro da url
+						//insertOnTable('ze','tit',tab.url,screenShot);
+						
+						//$.get("http://localhost/alvo.html",{},getHTMLFromWeb,"text");
+						$.get(currentURL,{},getHTMLFromWeb,"text");
+					}
+					
+					showLinks();
+				},
+				error
+		) });
+	}
+	//alert(resTab.length);
+	//chrome.tabs.get(tab, getAllTabData);
+}
+
+function removeTag(html)
+{
+	html = String(/>.*</.exec(String(html)));
+	return html.substring( 1, html.length-1 );
+}
+
+function getHTMLFromWeb(data, textStatus, jqXHR)
+{
+	// limpa
+	while(data.indexOf("\r")>-1) data = String(data).replace("\r","");
+	while(data.indexOf("\n")>-1) data = String(data).replace("\n","");
+	
+	var autor = "";
+	var title = "";
+	var image = "";
+	var fonte = "";
+
+	var imageExp = /<img[^<]*>/gi;
+	var srcExp = /\ src=\"[\d\w\/\.\?\=\&\-\'\_\+\%\@\%\#\~\[\]\{\}\:]*\"/gi;
+	
+	// seleciona o dominio fonte
+	if (currentURL.indexOf("deviantart.com")>-1)
+	{
+		var deviantBase = /<h1.*<\/h1/gi;
+		var deviantUser = /(<a[^<]class\=\"u\".*>).*<\/a>/gi;
+		var deviantTitle = /(<a href)[^<]+<\/a>/gi;
+		var imageBase = /<img[^<]*id=\"gmi-ResViewSizer[^<]*>/gi;
+		
+		image = imageBase.exec(data)[0];
+		image = srcExp.exec(image)[0];
+		image = image.substring(6,image.length-1);
+		data = String(data);//String(deviantBase.exec(data));
+		data = data.substring(data.lastIndexOf("<h1"),data.lastIndexOf("<\/h1"));
+		autor = removeTag( deviantUser.exec(data)[0] );
+		title = removeTag( deviantTitle.exec(data)[0] );
+		fonte = "DeviantArt";
+	}
+	if (currentURL.indexOf("cghub.com")>-1)
+	{
+		var cghubBase = /<div class\=\"l1\".*class\=\"userpic\".*<div class\=\"clear\">/gi;
+		var cghubUser1 = /<h4.*<\/h4>/gi;
+		var cghubUser2 = /<a.*<\/a>/gi;
+		var cghubTitle = /<h4.*\ by\ /gi;
+		var imageBase = /class=\"main-image\".*<\/a>.*<div class=\"clear\">/gi;
+		
+		image = imageBase.exec(data)[0];
+		image = srcExp.exec(imageExp.exec(image)[0])[0];
+		image = image.substring(6,image.length-1);
+		data = String(cghubBase.exec(data));
+		autor = removeTag( String(cghubUser2.exec(String(cghubUser1.exec(data)[0]))[0]) );
+		autor = autor.substring(0,autor.indexOf("<"));
+		title = removeTag( String(cghubTitle.exec(data)[0]) + "</h4>" );
+		title = title.substring(0,title.indexOf(" by"));
+		fonte = "CGHub";
+	}
+	if (currentURL.indexOf("ilustradores.ning.com")>-1)
+	{
+		var ilustradoresBase = /<div class=\"xg_headline xg_headline-img xg_headline-2l\">.*<\/a>.*<\/li>.*<\/ul>.*<\/div>.*<\/div>/gi;
+		var ilustradoresUser = /<a href=\"\/profile\/[\. \d\w]*\">[\. \d\w]*<\/a>/gi;
+		var ilustradoresTitle = /<h1>.*<\/h1>/gi;
+		
+		data = String(ilustradoresBase.exec(data));
+		autor = removeTag( String(ilustradoresUser.exec(data)) );
+		title = removeTag( String(ilustradoresTitle.exec(data)[0]) );
+		fonte = "Portal Ilustradores";
+	}
+	if (currentURL.indexOf("conceptart.org")>-1)
+	{
+		var conceptBase = /<div id=\"artistbio\">.*<div id=\"artist_thumb\">/gi;
+		var conceptUser1 = /<div id=\"artistbio\">.*<h2>.*<\/h2>/gi;
+		var conceptUser2 = /<h2>.*<\/h2>/gi;
+		var conceptTitle = /<h1>.*<\/h1>/gi;
+		var imageBase = /<div id\=\"imageContainer".*<\/a><\/div><\/div>/gi;
+		
+		image = imageBase.exec(data)[0];
+		image = srcExp.exec(imageExp.exec(image)[0])[0];
+		image = image.substring(6,image.length-1);
+		data = String(conceptBase.exec(data));
+		autor =  String(conceptUser1.exec(data));
+		autor = removeTag( String(conceptUser2.exec(autor)) );
+		
+		//title = removeTag( String(ilustradoresTitle.exec(data)[0]) );
+		fonte = "ConceptArt";
+	}
+	if (currentURL.indexOf("oreno.imouto.org")>-1)
+	{
+		var orenoBase = /<div class="author">.*<\/title>/gi;
+		var orenoUser = /<h6><a.*>.*<\/a><\/h6>/gi;
+		var orenoTitle = /<title>.*<\/title>/gi;
+		var imageBase = /id=\"note-container\".*id=\"stats\"/gi;
+		
+		image = imageBase.exec(data)[0];
+		image = srcExp.exec(imageExp.exec(image)[0])[0];
+		image = image.substring(6,image.length-1);
+		data = String(orenoBase.exec(data));
+		autor = removeTag( removeTag( String(orenoUser.exec(data)[0]) ));
+		title = removeTag( String(orenoTitle.exec(data)[0]) );
+		fonte = "Oreno Imouto";
+	}
+	
+	
+	//alert( title + " - " + autor );
+	if (autor=="")
+	{
+		$("#info").html("tags não encontradas!");
+	} else {
+		$("#info").html(fonte + " pronto! " + autor + ", " + title +", " + image);
+		insertOnTable(autor,title,image,currentURL,screenShot);
+		//alert(autor);
+	}
+	showLinks();
+}
+
+/**
+* Esta é a função final do aplicativo
+* prepara a injeção de jsvascript no blogger
+* para organizar as imagens
+**/
+function injetar()
+{
+	store.transaction(
+		function (tx)
+		{
+			tx.executeSql(
+				"SELECT autor,title,img_url,url FROM fontes",
+				[],
+				injectionDone,
+				error);
+		}
+	);
+}
+
+function injectionDone(tx,res)
+{
+	var object = "nm_image_store = [\n";
+	for(var i=0; i<res.rows.length; i++)
+	{
+		var row = res.rows.item(i);
+		object += "\t{ "+
+			"autor:\""+ row.autor + "\", " +
+			"title:\""+ row.title + "\", " +
+			"img_url:\""+ row.img_url + "\", " +
+			"url:\""+ row.url + "\" " +
+			"},\n";
+	}
+	object += "];\n\n";
+	
+	chrome.tabs.executeScript( null, {file: "js/jquery.js"});
+	chrome.tabs.executeScript( null, {code: object});
+	chrome.tabs.executeScript( null, {file: "js/montador.js"});
+	//chrome.tabs.executeScript( null, {code:"document.body.innerHTML=nm_image_store[0].autor"});
+}
+
+
+
+
+function createTable(tx)
+{
+	var query = 'CREATE TABLE IF NOT EXISTS '+
+			'fontes('+
+			' id INTEGER PRIMARY KEY ASC,'+
+			' autor TEXT,'+
+			' title TEXT,'+
+			' url TEXT,'+
+			' img_url TEXT,'+
+			' thumb BLOB,'+
+			' data_ad DATETIME'+
+			');';
+	tx.executeSql( query );
+}
+
+function dropTable(tx)
+{
+	tx.executeSql('DROP TABLE IF EXISTS fontes');
+}
+
+function insertOnTable(autor,title,image, url,thumb)
+{
+	store.transaction(
+		function(tx)
+		{
+			tx.executeSql( "INSERT INTO fontes (autor,title,url,img_url,thumb,data_ad) VALUES("+
+			"'"+ autor +"',"+
+			"'"+ title +"',"+
+			"'"+ url +"',"+
+			"'"+ image +"',"+
+			"'"+ thumb +"',"+
+			" DATETIME('now'))"
+			);
+		},
+		error
+	);
+}
+
+
+function error(er)
+{
+	alert(er.message);
+}
+
+function suss(sc)
+{
+	
+}
+
+//variavel de dados para salvar
+var elements=[];
+
+// Exibe os links
+function showLinks()
+{
+	store.transaction(
+		function(tx)
+		{
+			tx.executeSql("SELECT id,url,thumb,title,autor,img_url,data_ad FROM fontes ORDER BY url",
+				[],function(tx,res)
+				{
+					var len = res.rows.length;
+					$("#elements-doc-ul").html("");
+					for (var i = 0; i < len; ++i)
+					{
+						var row = res.rows.item(i);
+						elements.push( {"url":row.url,"img_url":row.img_url,"autor":row.autor,"title":row.title,"data_ad":row.data_ad,"thumb":row.thumb} );
+						var li = $(document.createElement("li"));
+						li.html( String(row.url) ).data('thumb',row.thumb);
+						$("#elements-doc-ul").append(li);
+						li.mouseover(
+							function(e) { $(img).css("top",e.pageY+2).css("left",e.pageX+4).css("display","block").attr("src", $(this).data("thumb")) }
+						).mouseout(
+							function(e) { $(img).css("display","none") }
+						).mousemove(
+							function(e) { $(img).css("top",e.pageY+2).css("left",e.pageX+4) }
+						);
+					}
+				}, error
+			);
+		}
+	);
+}
+
+//------------------
+function js_data()
+{
+	var tElm = "";
+	for( var i=0; i<elements.length; i++)
+	{
+		var row = elements[i];
+		tElm += "\t"+'{"url":"'+row.url+'","img_url":"'+row.img_url+'","autor":"'+row.autor+'","title":"'+row.title+'","data_ad":"'+row.data_ad+'","thumb":"'+row.thumb+'"},'+"\n";
+	}
+	var htm = '<html>'+
+	'<head>'+
+	'<title>Dados do blog</title>'+
+	"<style>\n"+
+	"body {\n width: 100%;\n height: 100%;\n background: #add8e6;\n }\n div {\n background: #ffffff;\n border: 1px solid #000;\n margin: 4px;\n padding: 4px;\n padding-left: 12px;\n -webkit-border-radius:	12px 12px 12px 12px;\n border-radius: 12px 12px 12px 12px;\n }\n img {\n margin: 2px;\n margin-right: 8px;\n min-width: 120px;\n }\n .autor {\n font-weight: bolder;\n }\n .title {\n font-weight: bold;\n }\n .data_ad {\n color: #303030;\n font-size: 9px;\n }\n .url {\n color: #505050;\n font-size: 7px;\n }\n .img_url {\n color: #505050;\n font-size: 7px;\n }\n"+
+	'</style>'+
+	'<link href="blog_data.css" type="text/css" rel="stylesheet" />'+
+	'<script type="text/javascript">'+
+	"\n<!-- //\n" +
+	"var json=[\n"+
+	tElm+
+	"];\n"+
+	"// -"+"->\n"+
+	'</script>'+
+	'</head>'+
+	'<body>'+
+	'<script type="text/javascript">'+
+	"\n<!-- //\n" +
+	"for(var i=0; i<json.length; i++) {\n"+
+	"\tdocument.write(\"<div><img src='\"+json[i].thumb+\"' width='80'/>"+
+	"<span class='autor'>\"+json[i].autor+\"</span> | "+
+	"<span class='title'>\"+json[i].title+\"</span> | "+
+	"<span class='data_ad'>\"+json[i].data_ad+\"</span> | "+
+	"<span class='url'>\"+json[i].url+\"</span> | "+
+	"<span class='img_url'>\"+json[i].img_url+\"</span>"+
+	"</div>\");\n"+
+	"};\n"+
+	'</script>'+
+	'</body></html>';
+	
+	return htm;
+}
+function as_alert(data)
+{
+	alert(data);
+}
+
+
+var img = null;
+var screenShot="";
+var currentURL="";
+var currentTabId=0;
+var store = window.openDatabase("comovcnuncaviu","1.0","Dados", 4*1024*1024 /* 4MB */, function() {} );
+
+function init()
+{
+	// debug
+	
+	img = document.getElementById("thumb");
+	//chrome.tabs.getCurrent(getTabData);
+	
+	//init db
+	store.transaction( createTable, error );
+	
+	chrome.windows.getCurrent(getWin);
+	
+}
+
+
+$(document).ready(init);
+//-->
+</script>
+  
+  <link href="style.css" type="text/css" rel="stylesheet" />
+</head>
+
+<body>
+	<header>
+		<h3>Montador</h3>
+	</header>
+	<section id="elements-doc">
+		<ul id="elements-doc-ul"></ul>
+	</section>
+	<section id="controls_sec">
+		<button onclick="store.transaction( dropTable, error );">Limpar DB</button>
+		<button onclick="injetar()">Injetar dados</button>
+		<object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000"
+					 id="ExternalInterfaceExample" width="36" height="21"
+					 codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab">
+				 <param name="movie" value="ExternalInterfaceExample.swf" />
+				 <param name="quality" value="high" />
+				 <param name="bgcolor" value="#869ca7" />
+				 <param name="allowScriptAccess" value="always" />
+				 <param name="wmode" value="transparent" />
+				 <embed src="jssavefile.swf" quality="high" bgcolor="#869ca7"
+					 width="36" height="21" name="ExternalInterfaceExample" align="middle"
+					 play="true" loop="false" quality="high" allowScriptAccess="always"
+					 type="application/x-shockwave-flash" wmode="transparent"
+					 pluginspage="http://www.macromedia.com/go/getflashplayer">
+				</embed>
+			</object>
+		<div id="info"></div>
+	</section>
+	<img id="thumb" alt="" width="200" />
+</body>
+</html>

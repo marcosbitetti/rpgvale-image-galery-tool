@@ -1,0 +1,13 @@
+body {
+  width: 400px;
+  height: 460px;
+}
+
+#elements-doc {
+  max-height: 350px;
+}
+
+#thumb {
+ display: none;
+ position: absolute;
+}
